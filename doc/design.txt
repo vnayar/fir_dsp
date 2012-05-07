@@ -1,0 +1,203 @@
+= CSCI641 - Computer Architecture =
+
+== Problem Domain ==
+
+Create a processor optimized to solve Digital Signal Processing (DSP) problems.
+Special attention will be given to Finite Inpulse Response (FIR) optimization.
+
+Finite Impulse Response (FIR)
+  y[n] = sum(i=0..N, b[i] * x[n-i])
+
+Operations (Reverse Polish Notation):
+
++ * Mem(b[i]) Mem(x[n-i])
+
+== Use a Circular Buffer for the Input Signal ==
+
+mem addr | value
+---------+-------	   /---\
+20040    | x[n-2]	  |     |
+20041    | x[n-1]	  v	   	|
+20042    | x[n]	    newest  |
+20043    | x[n-3]	oldest  |
+					   \---/
+Need 4 fields:
+* start pointer (20040)
+* end pointer (20043)
+* step size (1)
+* most recent sample pointer (20042)
+
+== FIR Filter Steps per Sample ==
+
+1. Obtain sample w/ ADC ; generate interrupt
+2. Detect and manage interrupt
+3. Move sample into input signal's circular buffer
+4. Update pointer for the input signal's circular buffer
+5. Zero the accumulator
+6. Control the loop through each of the coefficients
+  7. Fetch the coefficient from the coefficient circular buffer
+  8. Update the pointer for the coefficient's circular buffer
+  9. Fetch the sample from the input signal's circular buffer
+  10. Update the pointer for the input signal's circular buffer
+  11. Multiply the coefficient by the sample
+  12. Add the product to the accumulator
+  Goto 6
+13. Move the output sample (accumulator) to a holding buffer
+14. Move the output sample from the holding buffer to the DAC
+
+== Operations to Support ==
+
+* Multiply-Accumulate (MAC)
+  a <- a + (b * c)
+
+* Perhaps simultaneous add, mult, load1, load2
+
+* Loop
+Dedicated loop counter register:  %lcntr
+Loop takes start and end of loop, here PC + 4
+Specify end condition, lce (loop counter empty):  lce
+e.g.: %lcntr = 20, do (pc, 4) until lce;
+
+
++---------+             +-----------+  +-----------+              +--------+
+| Program | PM Addr Bus | PM Data   |  | DM Data   | DM Addr Bus  | Data   |
+| Memory  |<----------->| Address   |  | Address   |<------------>| Memory |
+|         |             | Generator |  | Generator |              |        |
+|         |             +-----------+  +-----------+              |        |
+|         |                 ^            ^                        |        |
+|         |                 |            |                        |        |
+|         |                 v            v                        |        |
+|         |             +-------------------+                     |        |
+|         |             | Program Sequencer |                     |        |
+|         |             +--------------+    |                     |        |
+|         |             |  Instruction |    |                     |        |
+|         |             |  Cache       |    |                     |        |
+|         |             +--------------+----+                     |        |
+|         | PM Data Bus        ^                     DM Data Bus  |        |
+|         |<-------------------+       +------------------------->|        |
+|         |                    |       |                          |        |
++---------+                    v       v                          +--------+
+						   	+------------+			  			 	  ^
+						   	| Data       |					   		  |
+						+-->| Registers  |---+				   	   	  v
+						|   +------------+	 |				   +--------------+
+						|  					 |				   |I/O Controller|
+						|  	+------------+	 |				   |    (DMA)     |
+						+---| Multiplier |<--+		  		   +--------------+
+			           	|  	+------------+	 |		  			   ^   	 ^
+			        	|  	+------------+	 |					   |	 |
+			           	+---| ALU        |<--+					   v	 v
+						|	+------------+	 |					High Speed I/O
+						|	+------------+   |					ADC, DAC
+						+---| Shifter    |<--+
+							+------------+
+
+
+
+== Design Ideas ==
+
+* Use special Circular Buffer Registers, each a vector of 64 integers.
+
+=== Sample Instructions:  SPARC DSP from Analog Devices ===
+Compute the dot-product of two vectors.
+
+i12 = _y; /* i12 points to beginning of y[ ] */
+i4 = _x; /* i4 points to beginning of x[ ] */
+lcntr = 20, do (pc,4) until lce; /* loop for the 20 array entries */
+f2 = dm(i4,m6); /* load the x[ ] value into register f2 */
+f4 = pm(i12,m14); /* load the y[ ] value into register f4 */
+f8 = f2*f4; /* multiply the two values, store in f8 */
+f12 = f8 + f12; /* add the product to the accumulator in f12 */
+dm(_result) = f12; /* write the accumulator to memory */
+
+
+=== Optimized Instructions:  SPARC DSP from Analog Devices ===
+Compute the dot-product of two vectors.
+
+i12 = _y; /* i12 points to beginning of y[ ] */
+i4 = _x; /* i4 points to beginning of x[ ] */
+f2 = dm(i4,m6), f4 = pm(i12,m14)
+f8 = f2*f4, f2 = dm(i4,m6), f4 = pm(i12,m14);
+/* prime the registers */
+lcntr = 18, do (pc,1) until lce;
+/* highly efficient main loop */
+f12 = f8 + f12, f8 = f2*f4, f2 = dm(i4,m6), f4 = pm(i12,m14);
+f12 = f8 + f12, f8 = f2*f4; /* complete the last loop */
+f12 = f8 + f12;
+dm(_result) = f12; /* store the result in memory */
+
+
+=== Instructions ===
+
+* Analog Devices SHARC DSP - Maybe some good ideas?
+http://www.analog.com/en/processors-dsp/sharc/processors/manuals/resources/index.html
+
+* loop
+
+
+= Component: Data Address Generator (DAG) =
+
+	   	   	   	  +----------+
+	   			  |   DAG    |
+	   		  1-->|re       a|-->16
+	   		  2-->|cbs       |
+              1-->|we        |
+	   		 32-->|wd        |
+	   			  +----------+
+
+re: read-enable
+  Enables 'addr' output and auto-incrementing of register 'ra'.
+  When set, addr <= ptr[a], ptr[a] += inc[a]
+cbs : circular-buffer-select
+  Selects which circular buffer will be read/written.
+  The following registers are in use:
+    base[0-3]: The starting address of a cirular buffer.
+    len[0-3] : The length of a circular buffer.
+    inc[0-3] : The auto-increment amount of the circular buffer.
+    ptr[0-3] : Current pointer address in the circular buffer.
+we: write-enable
+  When set, base[cbs] <= wd[31:16]
+            len[cbs]  <= wd[15:3]
+            inc[cbs]  <= 2 ** wd[3:1] * (-1 + 2*wd[0])
+            ptr[cbs]  <= base[cbs]						 
+a : address												 
+  Combines internal data to generate the next address in the circular buffer.
+														 
+=== High Level Block ===								 		   
+												  		 		   
+												  		 		   
+   	   +---------------------+					  		 		   
+   	   |  Register File 0-7  | 	   	   	   	   	   +--\	 		   
+	   |A1                RD1|-------------------->|ALU\ 		   
+   	   |A2                 	 |                      >  |-------+
+	   |                  RD2|-------------------->|   / 	   |
+	   |WE1                  |			  		   +--/	 	   |   
+	 +>|WA1                  |					  		 	   |   
+   	+|>|WD1                  |	   +----------+	   +-------+   |   
+	|| |                     |	   |   DAG1   |	   |  DM1  |   |   
+	|| |WE2                  |	   |re       a|-+->|a    rd|-+ |   
+  +-||>|WA2                  | 	   |cbs       |	|  |       | | |   
+  |+||>|WD2                  |	   |we        |	|  |we     | | |   
+  |||| +---------------------+	   |wd        |	|  |wd     | | |   
+  ||||							   +----------+	|  +-------+ | |   
+  |||+------------------------------------------+ 		 	 | |   
+  ||+--------------------------------------------------------+ |   
+  |+---------------------------------------------------------+ |   
+  +---------------------------------------------+ 		 	 | |   
+   	   +---------------------+ 	   +----------+ |  +-------+ | |   
+	   |  Register File 0-7  |	   |   DAG2   | |  |  DM2  | | |   
+	   |A1                   |	   |re       a|-+->|a    rd|-+ |   
+	   |A2                   |	   |cbs       |    |       |   |   
+	   |                     |	   |we        |    |we     |   |   
+	   |WE1                  |	   |wd        |    |wd     |   |   
+	   |WA1                  |	   +----------+    +-------+   |   
+	 +>|WD1                  |					  	   	   	   |    +--\
+	 | |                  RD1|---------------------------------|--->|ALU\
+	 | |WE2                  | 	   	   	   	   	   	   	   	   |     >  |---+
+	 | |WA2               RD2|---------------------------------|--->|   /	|
+   +-|>|WD2                  |					  		 	   |    +--/	|
+   | | +---------------------+					  		 	   |			|
+   | |											  			   |			|
+   | +---------------------------------------------------------+			|
+   +------------------------------------------------------------------------+
+												  
