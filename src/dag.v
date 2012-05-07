@@ -14,7 +14,7 @@ module dag
    input [2:0] 	 cbs, // Circular Buffer Select
    input 		 we, // Write-enable
    input [31:0]  wd, // Write-data: base[31:16], len[15:4], sign[3], exp[2:0]
-   output [15:0] a); // Address
+   output reg [15:0] a); // Address
 
    reg [15:0] 	 base[3:0];
    reg [15:0] 	 top[3:0];
@@ -23,6 +23,7 @@ module dag
    
    always @(posedge clk) begin
 	  if (we) begin
+         a <= 16'bz;
 		 base[cbs] <= wd[31:16];
 		 ptr[cbs] <= wd[31:16];
 		 top[cbs] <= wd[31:16] + {3'b0, wd[15:4]};
@@ -33,7 +34,9 @@ module dag
 		 a <= ptr[cbs];
 		 ptr[cbs] = ptr[cbs] + inc[cbs]; // Blocking assignment
 		 ptr[cbs] = ptr[cbs] >= top[cbs] ? base[cbs] : ptr[cbs];
-		 ptr[cbs] = ptr[cbs] < base[cbs] ? top[cbs] : base[cbs];
+		 ptr[cbs] = ptr[cbs] < base[cbs] ? top[cbs] : ptr[cbs];
 	  end
-   end
+      else
+        a <= 16'bz;
+   end // always @ (posedge clk)
 endmodule // dag
