@@ -9,8 +9,7 @@ module prog_seq
   (
    input 			 clk, reset,
    input 			 we,    // Write-enable for loop registers
-   input [7:0] 		 iter,
-   input [7:0] 		 size,
+   input [7:0] 		 iter, size,
    output reg [15:0] addr);
 
    reg [3:0] 		 stack_index;
@@ -24,20 +23,23 @@ module prog_seq
 		 stack_index <= 0;
 	  end
 	  else if (we) begin
-		 stack_index <= stack_index + 1;
+		 stack_index = stack_index + 1;
 		 loop_start[stack_index] <= addr + 1;
-		 loop_end[stack_index] <= addr + size;
+		 loop_end[stack_index] <= addr + 1 + size;
+         loop_iter[stack_index] <= iter - 1;
+         addr <= addr + 1;
 	  end
 	  else begin
-		 if (addr == loop_end[stack_index])
-		   if (loop_iter[stack_index] != 0) begin
-			loop_iter[stack_index] <= loop_iter[stack_index] - 1;
-			addr <= loop_start[stack_index];
-		   end
-		   else begin
-			  stack_index <= stack_index - 1;
-			  addr <= addr + 1;
-		   end
+		 if (addr == loop_end[stack_index]) begin
+		    if (loop_iter[stack_index] !== 0) begin
+			   loop_iter[stack_index] <= loop_iter[stack_index] - 1;
+			   addr <= loop_start[stack_index];
+		    end
+		    else begin
+			   stack_index <= stack_index - 1;
+			   addr <= addr + 1;
+		    end
+         end
 		 else
 		   addr <= addr + 1;
 	  end // else: !if(we)
