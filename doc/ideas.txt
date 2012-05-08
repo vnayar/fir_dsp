@@ -159,38 +159,38 @@ we: write-enable
   When set, base[cbs] <= wd[31:16]
             len[cbs]  <= wd[15:3]
             inc[cbs]  <= 2 ** wd[3:1] * (-1 + 2*wd[0])
-            ptr[cbs]  <= base[cbs]                       
-a : address                                              
+            ptr[cbs]  <= base[cbs]
+a : address
   Combines internal data to generate the next address in the circular buffer.
-                                                         
-=== High Level Block ===                                           
-                                                                   
-                                                                   
-       +---------------------+                                     
-       |  Register File 0-7  |                     +--\            
-       |A1                RD1|-------------------->|ALU\           
+
+=== High Level Block ===
+
+
+       +---------------------+
+       |  Register File 0-7  |                     +--\
+       |A1                RD1|-------------------->|ALU\
        |A2                   |                      >  |-------+
        |                  RD2|-------------------->|   /       |
-       |WE1                  |                     +--/        |   
-     +>|WA1                  |                                 |   
-    +|>|WD1                  |     +----------+    +-------+   |   
-    || |                     |     |   DAG1   |    |  DM1  |   |   
-    || |WE2                  |     |re       a|-+->|a    rd|-+ |   
-  +-||>|WA2                  |     |cbs       | |  |       | | |   
-  |+||>|WD2                  |     |we        | |  |we     | | |   
-  |||| +---------------------+     |wd        | |  |wd     | | |   
-  ||||                             +----------+ |  +-------+ | |   
-  |||+------------------------------------------+            | |   
-  ||+--------------------------------------------------------+ |   
-  |+---------------------------------------------------------+ |   
-  +---------------------------------------------+            | |   
-       +---------------------+     +----------+ |  +-------+ | |   
-       |  Register File 8-15 |     |   DAG2   | |  |  DM2  | | |   
-       |A1                   |     |re       a|-+->|a    rd|-+ |   
-       |A2                   |     |cbs       |    |       |   |   
-       |                     |     |we        |    |we     |   |   
-       |WE1                  |     |wd        |    |wd     |   |   
-       |WA1                  |     +----------+    +-------+   |   
+       |WE1                  |                     +--/        |
+       |WA1                  |                                 |
+    +->|WD1                  |     +----------+    +-------+   |
+    |  |                     |     |   DAG1   |    |  DM1  |   |
+    |  |WE2                  |     |re       a|--->|a    rd|-+ |
+   	|  |WA2                  |     |cbs       |    |       | | |
+  +-|->|WD2                  |     |we        |    |we     | | |
+  |	|  +---------------------+     |wd        |    |wd     | | |
+  |	|                              +----------+    +-------+ | |
+  |	|                                                        | |
+  |	+--------------------------------------------------------+ |
+  +----------------------------------------------------------+ |
+                                                             | |
+       +---------------------+     +----------+    +-------+ | |
+       |  Register File 8-15 |     |   DAG2   |    |  DM2  | | |
+       |A1                   |     |re       a|--->|a    rd|-+ |
+       |A2                   |     |cbs       |    |       |   |
+       |                     |     |we        |    |we     |   |
+       |WE1                  |     |wd        |    |wd     |   |
+       |WA1                  |     +----------+    +-------+   |
      +>|WD1                  |                                 |    +--\
      | |                  RD1|---------------------------------|--->|ALU\
      | |WE2                  |                                 |     >  |---+
@@ -200,4 +200,35 @@ a : address
    | |                                                         |            |
    | +---------------------------------------------------------+            |
    +------------------------------------------------------------------------+
-                                                  
+
+
+=== Instruction Format ===
+
+f12 = f8 + f12 ; f4 = d2(cb0) ; f8 = f2 * f4 ; f2 = d1(cb0)
+ -- 22 bits --   -- 10 bits --  -- 22 bits --  -- 10 bits --
+    Type A          Type D	       Type A         Type D
+
+Type (A)LU
+  6-bit opcode, 4-bit reg-dest, 4-bit reg-srcA, 4-bit reg-srcB, 4-bit func
+Type (D)AG
+  4-bit opcode, 4-big reg-dest, 2-bit cbs
+
+[63:58] Register 2, Type A, opcode
+[57:54] Register 2, Type A, reg-dest
+[53:50] Register 2, Type A, reg-srcA
+[49:46] Register 2, Type A, reg-srcB
+[45:42] Register 2, Type A, func
+
+[41:38] Memory 2, Type D, opcode
+[37:34] Memory 2, Type D, reg-dest
+[33:32] Memory 2, Type D, cbs
+
+[31:26] Register 1, Type A, opcode
+[25:22] Register 2, Type A, reg-dest
+[21:18] Register 1, Type A, reg-srcA
+[17:14] Register 1, Type A, reg-srcB
+[13:10] Register 1, Type A, func
+
+[9:6] Memory 1, Type D, opcode
+[5:2] Memory 1, Type D, reg-dest
+[1:0] Memory 1, Type D, cbs
