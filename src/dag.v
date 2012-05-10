@@ -9,33 +9,37 @@
  * the address "wraps-around" to the other end of the circular buffer.
  */
 module dag
-  (input         clk,
-   input 		 re, // Read-enable
-   input [2:0] 	 cbs, // Circular Buffer Select
-   input 		 we, // Write-enable
-   input [31:0]  wd, // Write-data: base[31:16], len[15:4], sign[3], exp[2:0]
+  (
+   input 			 clk,
+   input 			 re, // Read-enable
+   input [2:0] 		 cbs, // Circular Buffer Select
+   input 			 we, // Write-enable
+   input [15:0] 	 base, // These four inputs add to 32-bits.
+   input [11:0] 	 len,
+   input 			 sign,
+   input [2:0] 		 expt,
    output reg [15:0] a); // Address
 
-   reg [15:0] 	 base[3:0];
-   reg [15:0] 	 top[3:0];
-   reg [15:0] 	 inc[3:0];
-   reg [15:0] 	 ptr[3:0];
+   reg [15:0] 	 cb_base[3:0];
+   reg [15:0] 	 cb_top[3:0];
+   reg [15:0] 	 cb_inc[3:0];
+   reg [15:0]    cb_ptr[3:0];
    
    always @(posedge clk) begin
-	  if (we) begin
+      if (we) begin
          a <= 16'bz;
-		 base[cbs] <= wd[31:16];
-		 ptr[cbs] <= wd[31:16];
-		 top[cbs] <= wd[31:16] + {3'b0, wd[15:4]};
-		 inc[cbs] = 1 << wd[2:0]; // Blocking assignment
-		 inc[cbs] = wd[3] ? -inc[cbs] : inc[cbs];
-	  end
-	  else if (re) begin
-		 a <= ptr[cbs];
-		 ptr[cbs] = ptr[cbs] + inc[cbs]; // Blocking assignment
-		 ptr[cbs] = ptr[cbs] >= top[cbs] ? base[cbs] : ptr[cbs];
-		 ptr[cbs] = ptr[cbs] < base[cbs] ? top[cbs] : ptr[cbs];
-	  end
+         cb_base[cbs] <= base;
+         cb_ptr[cbs] <= base;
+         cb_top[cbs] <= base + {3'b0, len};
+         cb_inc[cbs] = 1 << expt; // Blocking assignment
+         cb_inc[cbs] = sign ? -cb_inc[cbs] : cb_inc[cbs];
+      end
+      else if (re) begin
+         a <= cb_ptr[cbs];
+         cb_ptr[cbs] = cb_ptr[cbs] + cb_inc[cbs]; // Blocking assignment
+         cb_ptr[cbs] = cb_ptr[cbs] >= cb_top[cbs] ? cb_base[cbs] : cb_ptr[cbs];
+         cb_ptr[cbs] = cb_ptr[cbs] < cb_base[cbs] ? cb_top[cbs] : cb_ptr[cbs];
+      end
       else
         a <= 16'bz;
    end // always @ (posedge clk)

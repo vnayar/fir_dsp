@@ -8,7 +8,7 @@ module test_prog_seq();
    
    reg clk, reset;
    reg we;
-   reg [7:0] iter, size;
+   reg [11:0] iter, size;
    wire [15:0] addr;
    
    // Instantiate the device-under-test (dut).

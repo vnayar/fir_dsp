@@ -12,6 +12,28 @@ Operations (Reverse Polish Notation):
 
 + * Mem(b[i]) Mem(x[n-i])
 
+== Applications ==
+
+Many Finite Impulse Response applications exist.  Essentially the FIR is
+performing a convolution.  However, instead of directly using a convolution
+function, the function is windowed and sampled, and then used in repeated
+multiply-and-accumulate operations.
+
+Sample usage:
+
+* Low Pass Filter:  sin(x)/x
+* gnuplot> set terminal svg; set output "lowpass.svg";
+  set samples 40; set pointsize 1.5; plot sin(x)/x with linespoints pt 4;
+
+* Delay:  d(x) = (x >= -5.5 && x < -5.0) ? 1 : 0;
+* gnuplot>  set terminal svg; set output "lowpass.svg";
+  set samples 40; set pointsize 1.5; plot d(x) with linespoints pt 4;
+
+* Gaussian Blur:  norm(x)
+* gnuplot> normal(x) = 1.0/sqrt(2.0*pi) * exp(-0.5 * x**2);
+  set samples 40; set pointsize 1.5;
+  plot normal(x) with linespoints pt 4;
+
 == Use a Circular Buffer for the Input Signal ==
 
 mem addr | value
@@ -232,3 +254,14 @@ Type (D)AG
 [9:6] Memory 1, Type D, opcode
 [5:2] Memory 1, Type D, reg-dest
 [1:0] Memory 1, Type D, cbs
+
+
+loop iterations, size;
+     -- 32-bit --
+
+Type (L)oop
+  6-bit opcode, 12-bit iter, 12-bit size
+
+[31:26] Loop opcode
+[25:14] Loop Iterations
+[13:2]  Loop size
