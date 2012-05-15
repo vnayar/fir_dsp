@@ -12,8 +12,8 @@ module alu
         0: result = src_a & src_b;
         1: result = src_a | src_b;
         2: result = src_a + src_b;
-        4: result = src_a & ~src_b;
-        5: result = src_a | ~src_b;
+        3: result = src_a * src_b;
+        4: result = src_a / src_b;
         6: result = src_a - src_b;
         7: result = src_a < src_b;
         default: result = src_a + src_b;
